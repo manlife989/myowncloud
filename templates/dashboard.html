@@ -84,12 +84,11 @@
 
     <!-- Sidebar -->
     <div class="sidebar">
-        <h2>Menu</h2>
-        <a href="#">Account</a>
+        <h2>Your Space</h2>
+        <a href="{{ url_for('dashboard',view='public') }}">Public files</a>
         <a href="{{ url_for('dashboard',view='private') }}">Private</a>
         <a href="{{ url_for('upload_page') }}">Upload</a>
-        <a href="#">history</a>
-        <a href="{{ url_for('login') }}">Logout</a>
+        <a href="{{ url_for('logout') }}">Logout</a>
     </div>
 
     <!-- Main Content -->

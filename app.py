@@ -1,10 +1,12 @@
-from flask import Flask, render_template, request, redirect, url_for, flash, session,jsonify,send_from_directory
+from flask import Flask, render_template, request, redirect, url_for, flash, session,jsonify,send_from_directory,make_response
 import mysql.connector
 from flask_bcrypt import Bcrypt
 import os
 from flask_mail import Mail, Message
+from itsdangerous import URLSafeTimedSerializer
 import secrets
 
+s = URLSafeTimedSerializer("your_secret_key")
 app = Flask(__name__)
 app.secret_key = 'your_secret_key'  # Required for session management
 bcrypt = Bcrypt(app)
@@ -13,8 +15,8 @@ app.config["MAIL_SERVER"] = "smtp.gmail.com"
 app.config["MAIL_PORT"] = 587
 app.config["MAIL_USE_TLS"] = True
 app.config["MAIL_USERNAME"] = "gillrao43@gmail.com"  # Replace with your email
-app.config["MAIL_PASSWORD"] = "gbam ejne qrmd yxfv"  # Replace with your password
-app.config["MAIL_DEFAULT_SENDER"] = "your-email@gmail.com"
+app.config["MAIL_PASSWORD"] = "gbamejneqrmdyxfv"  # Replace with your password
+app.config["MAIL_DEFAULT_SENDER"] = "gillrao43@gmail.com"
 
 mail = Mail(app)
 
@@ -50,43 +52,12 @@ cursor = db.cursor()
 def home():
     return render_template('index.html')
 
-@app.route("/send_verification", methods=["POST"])
-def send_verification():
-    email = request.form.get("email")
-
-    if not email:
-        flash("Please enter a valid email!", "error")
-        return redirect(url_for("home"))
-
-    # Generate a unique verification token
-    token = secrets.token_urlsafe(16)
-    verification_tokens[token] = email
-
-    # Create the verification link
-    verification_link = url_for("verify", token=token, _external=True)
-
-    # Send verification email
-    subject = "Verify Your Email"
-    message_body = f"Click the link to verify your email: {verification_link}"
-
-    try:
-        msg = Message(subject, recipients=[email], body=message_body)
-        mail.send(msg)
-        return render_template("verify.html", email=email)  # Show verification page
-    except Exception as e:
-        return f"Error sending email: {e}"
-
-@app.route("/verify/<token>")
-def verify(token):
-    email = verification_tokens.get(token)
-    if email:
-        del verification_tokens[token]  # Remove token (user is verified)
-        flash("Email verified successfully!", "success")
-        
-        return redirect(url_for("dashboard"))
-    else:
-        flash("Invalid or expired token!", "error")
-        return redirect(url_for("home"))
+@app.after_request
+def add_no_cache_headers(response):
+    response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+    response.headers["Pragma"] = "no-cache"
+    response.headers["Expires"] = "0"
+    return response
 
 # Signup Route
 @app.route('/signup', methods=['GET', 'POST'])
@@ -96,24 +67,40 @@ def signup():
         email = request.form['email']
         password = request.form['password']
         
-        # Hash the password
+        # Hash password
         hashed_password = bcrypt.generate_password_hash(password).decode('utf-8')
 
-        # Insert user into the database
-        try:
-            cursor.execute("INSERT INTO users (username, email, password) VALUES (%s, %s, %s)", 
-                           (username, email, hashed_password))
-            db.commit()
-            flash("Registration successful! Please login.", "success")
-            return redirect(url_for('dashboard', view="public"))
-        except mysql.connector.Error as err:
-            flash("Error: " + str(err), "danger")
-    
+        # Check if email already exists
+        cursor.execute("SELECT * FROM users WHERE email = %s", (email,))
+        if cursor.fetchone():
+            flash("Email already registered!", "danger")
+            return redirect(url_for('signup'))
+
+        # Generate verification token
+        token = s.dumps(email, salt='email-confirm')
+
+        # Send verification email
+        verification_link = url_for('verify_email', token=token, _external=True)
+        msg = Message("Verify Your Email", sender="gillrao43@gmail.com", recipients=[email])
+        msg.body = f"Click the link to verify your email: {verification_link}"
+        mail.send(msg)
+        email = request.form.get("email")
+        print(f"Received email: {email}")  # Debugging statement
+
+
+        # Store user in a temporary table
+        cursor.execute("INSERT INTO pending_users (username, email, password) VALUES (%s, %s, %s)", 
+                       (username, email, hashed_password))
+        db.commit()
+
+        flash("A verification email has been sent. Please check your inbox.", "info")
+        return redirect(url_for('verify_email', token=token))
+
     return render_template('signup.html')
 
-# Login Route
 @app.route('/login', methods=['GET', 'POST'])
 def login():
+    """Handles user login and session management."""
     if request.method == 'POST':
         username = request.form['username']
         password = request.form['password']
@@ -124,28 +111,64 @@ def login():
 
         if user and bcrypt.check_password_hash(user[1], password):
             session['user_id'] = user[0]  # Store user ID in session
-            #flash("Login successful!", "success")
-            return redirect(url_for('dashboard',view='public'))
+            session['username'] = username  # Also store username for better tracking
+            return redirect(url_for('dashboard', view='public'))
         else:
             flash("Invalid username or password", "danger")
     
     return render_template('login.html')
 
-# Dashboard Route
+@app.route('/verify_email/<token>')
+def verify_email(token):
+    try:
+        email = s.loads(token, salt='email-confirm', max_age=3600)  # Token expires in 1 hour
+
+        # Retrieve user from pending_users
+        cursor.execute("SELECT * FROM pending_users WHERE email = %s", (email,))
+        user = cursor.fetchone()
+
+        if not user:
+            flash("Invalid or expired token!", "danger")
+            return redirect(url_for('signup'))
+
+        username, email, password = user[:3]
+        session['user_id'] = user.id  
+        # Move user to the main users table
+        cursor.execute("INSERT INTO users (username, email, password) VALUES (%s, %s, %s)", 
+                       (username, email, password))
+        cursor.execute("DELETE FROM pending_users WHERE email = %s", (email,))
+        db.commit()
+
+        flash("Email verified! Logging you in.", "success")
+        return redirect(url_for('dashboard', view="public"))
+
+    except:
+        flash("Verification link is invalid or expired.", "danger")
+        return redirect(url_for('signup'))
+
+
+# Login Route
+
 @app.route('/dashboard')
 def dashboard():
+    """Dashboard route handling public and private files."""
+    if 'user_id' not in session:
+        flash("You need to log in first.", "danger")
+        return redirect(url_for('home'))
     view = request.args.get('view', 'public')  # Default to 'public'
-
+    
     if view == 'public':
         files = os.listdir(PUBLIC_CLOUD_FOLDER)
+    elif view == 'private' and 'user_id' in session:
+        user_folder = os.path.join(PRIVATE_CLOUD_FOLDER, str(session['user_id']))
+        files = os.listdir(user_folder) if os.path.exists(user_folder) else []
     else:
-        user_folder = os.path.join(PRIVATE_CLOUD_FOLDER, str(session.get('user_id')))
-        if os.path.exists(user_folder):
-            files = os.listdir(user_folder)
-        else:
-            files = []
+        flash("Unauthorized access!", "danger")
+        return redirect(url_for('dashboard', view='public'))
 
     return render_template('dashboard.html', files=files, view=view)
+
+
 
 @app.route('/public_cloud/<filename>')
 def get_file(filename):
@@ -184,6 +207,11 @@ def upload_public():
 
     file.save(os.path.join(PUBLIC_CLOUD_FOLDER, file.filename))
     return jsonify({"message": "File uploaded successfully!"})
+
+@app.route('/logout')
+def logout():
+    session.clear()  # Clears all session data
+    return redirect(url_for('home'))
 
 @app.route('/upload_private', methods=['POST'])
 def upload_private():

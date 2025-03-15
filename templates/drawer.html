@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: Arial, sans-serif;
+        }
+        body {
+            display: flex;
+            background: #121212;
+            color: white;
+            height: 100vh;
+        }
+        .sidebar {
+            width: 250px;
+            background: #1e1e1e;
+            padding: 20px;
+            height: 100vh;
+            position: fixed;
+            top: 0;
+            left: 0;
+        }
+        .sidebar h2 {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+        .nav-links {
+            list-style: none;
+            padding: 0;
+        }
+        .nav-links li {
+            margin: 10px 0;
+        }
+        .nav-links a {
+            text-decoration: none;
+            color: white;
+            display: block;
+            padding: 10px;
+            border-radius: 5px;
+            transition: background 0.3s;
+        }
+        .nav-links a:hover {
+            background: #333;
+        }
+        .content {
+            margin-left: 270px;
+            padding: 20px;
+            flex: 1;
+        }
+    </style>
+</head>
+<body>
+    <div class="sidebar">
+        <h2>Dashboard</h2>
+        <ul class="nav-links">
+            <li><a href="#videos">Videos</a></li>
+            <li><a href="#photos">Photos</a></li>
+            <li><a href="#pdfs">PDFs</a></li>
+            <li><a href="#codes">Codes</a></li>
+            <li><a href="#audios">Audios</a></li>
+            <li><a href="#others">Others</a></li>
+            <li><a href="#upload">Upload</a></li>
+        </ul>
+    </div>
+    <div class="content">
+        <h1>Welcome to Your Dashboard</h1>
+        <p>Select a category from the sidebar.</p>
+    </div>
+</body>
+</html>
