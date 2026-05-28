@@ -8,14 +8,14 @@ import secrets
 
 s = URLSafeTimedSerializer("your_secret_key")
 app = Flask(__name__)
-app.secret_key = 'your_secret_key'  # Required for session management
+app.secret_key = 'your_secret_key' 
 bcrypt = Bcrypt(app)
 
 app.config["MAIL_SERVER"] = "smtp.gmail.com"
 app.config["MAIL_PORT"] = 587
 app.config["MAIL_USE_TLS"] = True
-app.config["MAIL_USERNAME"] = "gillrao43@gmail.com"  # Replace with your email
-app.config["MAIL_PASSWORD"] = "gbamejneqrmdyxfv"  # Replace with your password
+app.config["MAIL_USERNAME"] = "gillrao43@gmail.com" 
+app.config["MAIL_PASSWORD"] = "gbamejneqrmdyxfv" 
 app.config["MAIL_DEFAULT_SENDER"] = "gillrao43@gmail.com"
 
 mail = Mail(app)
